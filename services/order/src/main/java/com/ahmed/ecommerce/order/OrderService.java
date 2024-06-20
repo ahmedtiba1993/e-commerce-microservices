@@ -2,12 +2,18 @@ package com.ahmed.ecommerce.order;
 
 import com.ahmed.ecommerce.customer.CustomerClient;
 import com.ahmed.ecommerce.exception.BusinessException;
+import com.ahmed.ecommerce.kafka.OrderConfirmation;
+import com.ahmed.ecommerce.kafka.OrderProducer;
 import com.ahmed.ecommerce.orderline.OrderLineRequest;
 import com.ahmed.ecommerce.orderline.OrderLineService;
 import com.ahmed.ecommerce.product.PurchaseRequest;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.ahmed.ecommerce.product.ProductClient;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +24,7 @@ public class OrderService {
     private final OrderRepository repository;
     private final OrderMapper mapper;
     private final OrderLineService orderLineService;
+    private final OrderProducer orderProducer;
 
     public Integer createOrder(OrderRequest request) {
 
@@ -47,7 +54,29 @@ public class OrderService {
         // todo start paryment process
 
         // sent the order confirmation -- > notifcation-microService ( kafka )
+        orderProducer.sendOrderConfirmation(
+                new OrderConfirmation(
+                        request.reference(),
+                        request.amount(),
+                        request.paymentMethod(),
+                        customer,
+                        purchasedProducts
+                )
+        );
 
-        return null;
+        return order.getId();
+    }
+
+    public List<OrderResponse> findAllOrders() {
+        return this.repository.findAll()
+                .stream()
+                .map(this.mapper::fromOrder)
+                .collect(Collectors.toList());
+    }
+
+    public OrderResponse findById(Integer id) {
+        return this.repository.findById(id)
+                .map(this.mapper::fromOrder)
+                .orElseThrow(() -> new EntityNotFoundException(String.format("No order found with the provided ID: %d", id)));
     }
 }
