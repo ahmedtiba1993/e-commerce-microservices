@@ -6,6 +6,8 @@ import com.ahmed.ecommerce.kafka.OrderConfirmation;
 import com.ahmed.ecommerce.kafka.OrderProducer;
 import com.ahmed.ecommerce.orderline.OrderLineRequest;
 import com.ahmed.ecommerce.orderline.OrderLineService;
+import com.ahmed.ecommerce.payment.PaymentClient;
+import com.ahmed.ecommerce.payment.PaymentRequest;
 import com.ahmed.ecommerce.product.PurchaseRequest;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ public class OrderService {
     private final OrderMapper mapper;
     private final OrderLineService orderLineService;
     private final OrderProducer orderProducer;
+    private final PaymentClient paymentClient;
 
     public Integer createOrder(OrderRequest request) {
 
@@ -51,7 +54,15 @@ public class OrderService {
             );
         }
 
-        // todo start paryment process
+        // start paryment process
+        var paymentRequest = new PaymentRequest(
+                request.amount(),
+                request.paymentMethod(),
+                order.getId(),
+                order.getReference(),
+                customer
+        );
+        paymentClient.requestOrderPayment(paymentRequest);
 
         // sent the order confirmation -- > notifcation-microService ( kafka )
         orderProducer.sendOrderConfirmation(
